@@ -1,0 +1,80 @@
+function Chom_cp_deriv = second_order_Chom_cp(fractions, stiffness, Chom_hf_deriv, Chom_cp, materialProperties, I, mode)
+% SECOND_ORDER_CHOM_CP
+%   Performs the 2nd-order expansions (deviatoric and volumetric) for the
+%   cement paste stiffness based on hydrate foam second-order results.
+%   Supports normal and ITZ modes.
+%
+% INPUTS:
+%   fractions         - Struct containing volume fractions
+%   stiffness         - Struct with phase stiffness matrices
+%   Chom_hf_deriv     - Second-order hydrate foam results (volumetric and deviatoric corrected stiffness)
+%   Chom_cp           - First-order homogenized cement paste stiffness
+%   materialProperties- Contains elastic properties of hydrate foam
+%   I                 - 6x6 identity tensor
+%   mode              - 'normal' or 'ITZ'
+%
+% OUTPUT:
+%   Chom_cp_deriv     - A struct with fields:
+%       .volumetric    -> The 2nd-order volumetric-corrected cement paste stiffness (6x6)
+%       .deviatoric    -> The 2nd-order deviatoric-corrected cement paste stiffness (6x6)
+%       .diffQ_vol_cp  -> Difference quotient for volumetric correction
+%       .diffQ_dev_cp  -> Difference quotient for deviatoric correction
+
+%% EXTRACT VARIABLES BASED ON MODE
+if strcmp(mode, 'normal')
+    fcem_cp = fractions.cement_paste_composition.clinker;
+    fhf_cp  = fractions.hydrate_foam.total_in_paste;
+else
+    fcem_cp = fractions.ITZ_composition.clinker;
+    fhf_cp  = fractions.ITZ_hydrate_foam.total_in_paste;
+end
+
+C_clin   = stiffness.clinker;
+C_hf_dev = Chom_hf_deriv.deviatoric;
+C_hf_vol = Chom_hf_deriv.volumetric;
+
+k_hyd = materialProperties.hydrate.k;
+mu_hyd = materialProperties.hydrate.mu;
+
+fapp = 0.001;  % Perturbation factor
+
+%% DEVIATORIC EXPANSION
+C0_dev = C_hf_dev;
+P_sph = P_isotrans_sph(C0_dev);
+Ainf_cem = inv(I + P_sph * (C_clin - C0_dev));
+Ainf_hf = I;
+
+EEinfty_cp_dev_transiso = inv(fcem_cp * Ainf_cem + fhf_cp * Ainf_hf);
+A_cem_dev_transiso = Ainf_cem * EEinfty_cp_dev_transiso;
+A_hf_dev_transiso  = Ainf_hf * EEinfty_cp_dev_transiso;
+
+Chom_cp_dev_transiso = ...
+    fcem_cp * C_clin * A_cem_dev_transiso + ...
+    fhf_cp  * C_hf_dev * A_hf_dev_transiso;
+
+%% VOLUMETRIC EXPANSION
+C0_vol = C_hf_vol;
+P_sph = P_isotrans_sph(C0_vol);
+Ainf_cem = inv(I + P_sph * (C_clin - C0_vol));
+Ainf_hf = I;
+
+EEinfty_cp_vol_transiso = inv(fcem_cp * Ainf_cem + fhf_cp * Ainf_hf);
+A_cem_vol_transiso = Ainf_cem * EEinfty_cp_vol_transiso;
+A_hf_vol_transiso  = Ainf_hf * EEinfty_cp_vol_transiso;
+
+Chom_cp_vol_transiso = ...
+    fcem_cp * C_clin * A_cem_vol_transiso + ...
+    fhf_cp  * C_hf_vol * A_hf_vol_transiso;
+
+%% DIFFERENCE QUOTIENTS
+diffQ_vol_cp = 1 / (fapp * k_hyd) * (Chom_cp_vol_transiso - Chom_cp);
+diffQ_dev_cp = 1 / (fapp * mu_hyd) * (Chom_cp_dev_transiso - Chom_cp);
+
+%% PACKAGE RESULTS
+Chom_cp_deriv = struct( ...
+    'volumetric', Chom_cp_vol_transiso, ...
+    'deviatoric', Chom_cp_dev_transiso, ...
+    'diffQ_vol_cp', diffQ_vol_cp, ...
+    'diffQ_dev_cp', diffQ_dev_cp ...
+);
+end

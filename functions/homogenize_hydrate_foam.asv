@@ -1,0 +1,70 @@
+function [Chom_hf, EEinfty_hf_iso, elastic_hf] = homogenize_hydrate_foam(fractions, stiffness, params, I, J, K)
+% HOMOGENIZE_HYDRATE_FOAM Computes homogenized properties of hydrate foam using
+% self-consistent scheme
+%
+% Inputs:
+%   fractions  - Structure containing volume fractions
+%   stiffness  - Structure containing stiffness matrices
+%   params     - Analysis parameters including tolerance
+%   I, J, K    - Fundamental tensors
+%
+% Outputs:
+%   Chom_hf        - Homogenized stiffness tensor
+%   EEinfty_hf_iso - Strain concentration tensor
+%   elastic_hf     - Structure containing elastic properties (K, G, E, nu)
+
+    fprintf('\n=== Hydrate Foam Homogenization ===\n');
+    
+    % Initialize with hydrate stiffness weighted by volume fraction
+    C0 = fractions.hydrate_foam.hydrates * stiffness.hydrate;
+    deviation = 1;
+    
+    % Iterative self-consistent scheme
+    iteration = 0;
+    while deviation > params.tolerance && iteration < 100
+        iteration = iteration + 1;
+        
+        % Calculate Hill tensor for spherical pores
+        P_pore = fun_P_sphere_iso(C0);
+        
+        % Calculate strain concentration tensors
+        Ainf_pore = inv(I + P_pore*(stiffness.pore - C0));
+        Ainf_hyd = fun_Ainf_needle_iso(stiffness.hydrate, C0);
+        
+        % Calculate overall strain concentration tensor
+        EEinfty_hf = inv(fractions.hydrate_foam.porosity*Ainf_pore + ...
+                        fractions.hydrate_foam.hydrates*Ainf_hyd);
+        
+        % Update strain concentration tensor for hydrates
+        A_hyd = Ainf_hyd * EEinfty_hf;
+        
+        % Calculate homogenized stiffness
+        Chom_hf_new = fractions.hydrate_foam.hydrates * stiffness.hydrate * A_hyd;
+        
+        % Check convergence
+        deviation = abs(norm(Chom_hf_new - C0)/norm(Chom_hf_new));
+        
+        % Print iteration progress
+        fprintf('Iteration %d: Convergence = %.2e\n', iteration, deviation);
+        
+        % Update for next iteration
+        C0 = Chom_hf_new;
+    end
+    
+    % Store final results
+    Chom_hf = C0;
+    EEinfty_hf_iso = EEinfty_hf;
+    
+    % Calculate elastic properties
+    elastic_hf.k = Chom_hf(1,1) - 4/3*(Chom_hf(6,6)/2);
+    elastic_hf.mu = Chom_hf(6,6)/2;
+    elastic_hf.nu = (3*elastic_hf.k - 2*elastic_hf.mu)/(6*elastic_hf.k + 2*elastic_hf.mu);
+    elastic_hf.E = 9*elastic_hf.k*elastic_hf.mu/(3*elastic_hf.k + elastic_hf.mu);
+    
+    % Print results
+    fprintf('\nHydrate Foam Properties:\n');
+    fprintf('Bulk Modulus (K): %.2f GPa\n', elastic_hf.k);
+    fprintf('Shear Modulus (μ): %.2f GPa\n', elastic_hf.mu);
+    fprintf('Young''s Modulus (E): %.2f GPa\n', elastic_hf.E);
+    fprintf('Poisson''s Ratio (ν): %.3f\n\n', elastic_hf.nu);
+end
