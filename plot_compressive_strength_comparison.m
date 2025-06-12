@@ -1,0 +1,210 @@
+function plot_simulation_vs_experimental()
+%% Plotting Script for RC Model Outputs vs. Experimental Data
+% clearvars; close all; clc; % Commented out for use as a function
+
+% Define the hydration degrees used in simulation (must match original script)
+req_xi = 0.05:0.05:1;
+num_xi = length(req_xi);
+
+% --- 1. LOAD EXPERIMENTAL DATA ---
+% Ensure 'create_experimental_data.m' is in the path or current directory
+disp('Loading experimental data...');
+% Check if experimental_data already exists to avoid re-running if called multiple times
+if ~exist('experimental_data', 'var') || isempty(experimental_data)
+    run('create_experimental_data.m');
+    if ~exist('experimental_data', 'var')
+        error('Experimental data structure was not created. Ensure create_experimental_data.m runs correctly.');
+    end
+end
+disp('Experimental data loaded.');
+
+% --- 2. LOAD AND PROCESS E-MODULUS DATA ---
+disp('Loading and processing E-modulus simulation data...');
+% Load E-modulus OD
+loaded_data_E_OD = load('RC_final_Eod141312_sensFpor.mat', 'RC_sens');
+if ~isfield(loaded_data_E_OD, 'RC_sens')
+    error('RC_sens variable not found in RC_final_Eod141312_sensFpor.mat');
+end
+E_values_OD = extract_values_local(loaded_data_E_OD.RC_sens, num_xi);
+
+% Load E-modulus SSD
+loaded_data_E_SSD = load('RC_final_Essd141312_sensFpor.mat', 'RC_sens');
+if ~isfield(loaded_data_E_SSD, 'RC_sens')
+    error('RC_sens variable not found in RC_final_Essd141312_sensFpor.mat');
+end
+E_values_SSD = extract_values_local(loaded_data_E_SSD.RC_sens, num_xi);
+
+% Prepare plot data for E-modulus (add 0,0 point)
+xi_plot_E = [0, req_xi];
+E_plot_OD = [0, E_values_OD];
+E_plot_SSD = [0, E_values_SSD];
+
+% Experimental E-modulus data (assuming SSD conditions for comparison, adjust if needed)
+% Using row 4 for RCA as in the original script
+exp_xi_vals_E = experimental_data.xi_marker_vals;
+exp_E_vals    = experimental_data.OD.youngs_modulus(4, :);
+exp_std_dev_E = experimental_data.OD.youngs_modulus_stddev(4, :);
+
+% Filter out NaNs from experimental data for plotting
+valid_exp_E_idx = ~isnan(exp_E_vals) & ~isnan(exp_std_dev_E);
+exp_xi_vals_E_plot = exp_xi_vals_E(valid_exp_E_idx);
+exp_E_vals_plot    = exp_E_vals(valid_exp_E_idx);
+exp_std_dev_E_plot = exp_std_dev_E(valid_exp_E_idx);
+
+disp('E-modulus data processed.');
+
+% --- 3. PLOT E-MODULUS ---
+disp('Plotting E-modulus...');
+figure; % Create a new figure window
+hold on;
+
+% Plot Modeled Data OD
+plot(xi_plot_E, E_plot_OD, '-', 'LineWidth', 1.5, 'MarkerSize', 4, ...
+     'DisplayName', 'Modeled E (OD - sensFpor)');
+% Plot Modeled Data SSD
+plot(xi_plot_E, E_plot_SSD, '-', 'LineWidth', 1.5, 'MarkerSize', 4, ...
+     'DisplayName', 'Modeled E (SSD - sensFpor)');
+
+% Plot Experimental Data
+if ~isempty(exp_xi_vals_E_plot)
+    errorbar(exp_xi_vals_E_plot, exp_E_vals_plot, exp_std_dev_E_plot, 'x', ...
+             'MarkerSize', 8, 'LineWidth', 1, 'CapSize', 5, ...
+             'DisplayName', 'Experimental RCA (SSD)');
+else
+    disp('No valid experimental E-modulus data to plot.');
+end
+
+grid on; box on;
+set(gca, 'FontSize', 12, 'LineWidth', 1, 'FontName', 'Times New Roman');
+ax = gca;
+ax.XMinorGrid = 'on'; ax.YMinorGrid = 'on';
+ax.XMinorTick = 'on'; ax.YMinorTick = 'on';
+ax.GridLineStyle = ':'; ax.MinorGridLineStyle = ':';
+ax.GridAlpha = 0.4; ax.MinorGridAlpha = 0.4;
+
+xlabel('Hydration Degree \xi [-]', 'FontSize', 12);
+ylabel('E-Modulus {\it E_{conc}} [GPa]', 'FontSize', 12, 'Interpreter', 'tex');
+title('E-Modulus vs. Hydration Degree', 'FontSize', 14);
+xlim([0 1]);
+ylim_E_max_vals = [E_plot_OD, E_plot_SSD];
+if ~isempty(exp_E_vals_plot) % ensure not empty before accessing
+    ylim_E_max_vals = [ylim_E_max_vals, exp_E_vals_plot + exp_std_dev_E_plot];
+end
+ylim_E_max = max([ylim_E_max_vals, 10]); % Ensure y-lim is at least 10
+ylim([0 ceil(ylim_E_max/10)*10]); % Round up to nearest 10
+legend('Location', 'southeast', 'FontSize', 10);
+hold off;
+disp('E-modulus plot created.');
+
+% --- 4. LOAD AND PROCESS STRENGTH DATA ---
+disp('Loading and processing compressive strength simulation data...');
+% num_xi is defined at the beginning of the script (length(req_xi))
+
+% Load strength OD
+loaded_data_S_OD = load('RC_final_strengthod141312_sensFpor.mat', 'strength_values');
+if ~isfield(loaded_data_S_OD, 'strength_values')
+    error('The variable "strength_values" was not found in RC_final_strengthod141312_sensFpor.mat. Please ensure it was saved correctly.');
+end
+% The 'strength_values' variable from the file is the 1D array of strength data.
+% It should have 'num_xi' elements.
+if length(loaded_data_S_OD.strength_values) ~= num_xi
+    error('Dimension mismatch for strength_values from RC_final_strengthod141312_sensFpor.mat. Expected %d elements, found %d.', num_xi, length(loaded_data_S_OD.strength_values));
+end
+strength_data_OD = loaded_data_S_OD.strength_values; % Directly use the loaded array
+
+% Load strength SSD
+loaded_data_S_SSD = load('RC_final_strengthssd141312_sensFpor.mat', 'strength_values');
+if ~isfield(loaded_data_S_SSD, 'strength_values')
+    error('The variable "strength_values" was not found in RC_final_strengthssd141312_sensFpor.mat. Please ensure it was saved correctly.');
+end
+% The 'strength_values' variable from the file is the 1D array of strength data.
+if length(loaded_data_S_SSD.strength_values) ~= num_xi
+    error('Dimension mismatch for strength_values from RC_final_strengthssd141312_sensFpor.mat. Expected %d elements, found %d.', num_xi, length(loaded_data_S_SSD.strength_values));
+end
+strength_data_SSD = loaded_data_S_SSD.strength_values; % Directly use the loaded array
+
+% Prepare plot data for strength (add 0,0 point)
+% req_xi is defined at the start of the script
+xi_plot_strength = [0, req_xi]; % This remains the same
+strength_plot_OD = [0, strength_data_OD]; % Use the directly loaded and checked data
+strength_plot_SSD = [0, strength_data_SSD]; % Use the directly loaded and checked data
+
+% Experimental strength data (loading and processing remains the same)
+% ... (rest of the experimental data processing for strength) ...
+% Using row 4 for RCA as in the original script
+exp_xi_vals_cs = experimental_data.xi_marker_vals;
+exp_cs_vals    = experimental_data.OD.strength_MPa(4, :);
+exp_cs_std_dev = experimental_data.OD.strength_MPa_stddev(4, :);
+
+% Filter out NaNs from experimental data for plotting (this part is good as is)
+valid_exp_cs_idx = ~isnan(exp_cs_vals) & ~isnan(exp_cs_std_dev);
+exp_xi_vals_cs_plot = exp_xi_vals_cs(valid_exp_cs_idx);
+exp_cs_vals_plot    = exp_cs_vals(valid_exp_cs_idx);
+exp_cs_std_dev_plot = exp_cs_std_dev(valid_exp_cs_idx);
+
+disp('Compressive strength data processed.');
+
+% --- 5. PLOT COMPRESSIVE STRENGTH ---
+disp('Plotting compressive strength...');
+figure; % Create a new figure window
+hold on;
+
+% Plot Modeled Strength OD
+plot(xi_plot_strength, strength_plot_OD, '-o', 'LineWidth', 1.5, 'MarkerSize', 4, ...
+     'DisplayName', 'Modeled Strength (OD - sensFpor)');
+% Plot Modeled Strength SSD
+plot(xi_plot_strength, strength_plot_SSD, '-s', 'LineWidth', 1.5, 'MarkerSize', 4, ...
+     'DisplayName', 'Modeled Strength (SSD - sensFpor)');
+
+% Plot Experimental Strength Data
+if ~isempty(exp_xi_vals_cs_plot)
+    errorbar(exp_xi_vals_cs_plot, exp_cs_vals_plot, exp_cs_std_dev_plot, 'x', ...
+             'MarkerSize', 8, 'LineWidth', 1, 'CapSize', 5, ...
+             'DisplayName', 'Experimental RCA Strength (SSD)');
+else
+    disp('No valid experimental strength data to plot.');
+end
+
+grid on; box on;
+set(gca, 'FontSize', 12, 'LineWidth', 1, 'FontName', 'Times New Roman');
+ax = gca;
+ax.XMinorGrid = 'on'; ax.YMinorGrid = 'on';
+ax.XMinorTick = 'on'; ax.YMinorTick = 'on';
+ax.GridLineStyle = ':'; ax.MinorGridLineStyle = ':';
+ax.GridAlpha = 0.4; ax.MinorGridAlpha = 0.4;
+
+xlabel('Hydration Degree \xi [-]', 'FontSize', 12);
+ylabel('Compressive Strength {\it f_{c}} [MPa]', 'FontSize', 12, 'Interpreter', 'tex');
+title('Compressive Strength vs. Hydration Degree', 'FontSize', 14);
+xlim([0 1]);
+ylim_strength_max_vals = [strength_plot_OD, strength_plot_SSD];
+if ~isempty(exp_cs_vals_plot) % ensure not empty
+    ylim_strength_max_vals = [ylim_strength_max_vals, exp_cs_vals_plot + exp_cs_std_dev_plot];
+end
+ylim_strength_max = max([ylim_strength_max_vals, 10]); % Ensure y-lim is at least 10
+ylim([0 ceil(ylim_strength_max/10)*10]); % Round up to nearest 10 for MPa
+legend('Location', 'southeast', 'FontSize', 10);
+hold off;
+disp('Compressive strength plot created.');
+
+disp('--- Plotting script finished ---');
+
+end % End of main function plot_simulation_vs_experimental
+
+% --- Local Helper Function to Extract Data ---
+function values = extract_values_local(rc_sens_data, num_xi_points)
+    values = NaN(1, num_xi_points); % Initialize with NaNs
+    for idx = 1:num_xi_points
+        % Check if the cell {1, idx, 1} exists and is not empty
+        if iscell(rc_sens_data) && ...
+           size(rc_sens_data, 1) >= 1 && ...
+           size(rc_sens_data, 2) >= idx && ...
+           size(rc_sens_data, 3) >= 1 && ...
+           ~isempty(rc_sens_data{1, idx, 1})
+            values(idx) = rc_sens_data{1, idx, 1};
+        else
+            % Warning already implicitly handled by NaN if data is missing/empty
+            %fprintf('Warning: Missing, empty, or out-of-bounds data in RC_sens for xi index %d. Using NaN.\n', idx);
+        end
+    end
+end

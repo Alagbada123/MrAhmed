@@ -1,0 +1,638 @@
+%% LOAD DATA
+% Load the first dataset
+E_RCuITZ_data = load('RC_final_E_RCu_ssd161411_sensFpor.mat','RC_sens');
+RC_sens_ITZ = E_RCuITZ_data.RC_sens; % Assign to a unique variable
+
+% Load the second dataset
+E_RCu_data = load('RC_final_E_RCu_ssd101010_sensFpor.mat','RC_sens');
+RC_sens_RCu = E_RCu_data.RC_sens; % Assign to a unique variable
+
+% Load experimental data
+run('create_experimental_data.m');
+
+%% EXTRACT SIMULATED DATA
+% Assuming req_xi is the same for both simulations
+xi_values = 0.05:0.05:1; % (simulated) hydration degrees
+req_xi=xi_values;
+
+% Extract data for E_RCuITZ
+elastic_modulus_ITZ_values = zeros(size(xi_values));
+for i = 1:length(xi_values)
+    if ~isempty(RC_sens_ITZ{1, i, 1})
+        elastic_modulus_ITZ_values(i) = RC_sens_ITZ{1, i, 1}; % simulated E for ITZ
+    else
+        elastic_modulus_ITZ_values(i) = NaN; % Use NaN for missing points
+    end
+end
+
+% Extract data for E_RCu
+elastic_modulus_RCu_values = zeros(size(xi_values));
+for i = 1:length(xi_values)
+    if ~isempty(RC_sens_RCu{1, i, 1})
+        elastic_modulus_RCu_values(i) = RC_sens_RCu{1, i, 1}; % simulated E for RCu
+    else
+        elastic_modulus_RCu_values(i) = NaN; % Use NaN for missing points
+    end
+end
+
+%% PREPARE DATA FOR PLOTTING
+% Insert (0,0) so the plots start at E=0 for xi=0
+xi_plot = [0, xi_values];
+E_plot_ITZ = [0, elastic_modulus_ITZ_values];
+E_plot_RCu = [0, elastic_modulus_RCu_values];
+
+% Experimental data
+exp_xi_vals = experimental_data.xi_marker_vals;
+exp_E_vals  = experimental_data.SSD.youngs_modulus(4, :);
+exp_std_dev = experimental_data.SSD.youngs_modulus_stddev(4, :);
+
+%% 8) PLOT SIMULATION VS EXPERIMENTAL DATA
+% Set colors for lines (add more if needed)
+colors = {'b', 'r', 'g', 'm', 'c'}; % Blue for ITZ, Red for Exp, Green for RCu
+
+f = figure; % Create a new figure
+hold on; % Hold the plot to add multiple datasets
+
+% 1) Plot First Modeled Data (E_RCuITZ)
+plot(xi_plot, E_plot_ITZ, '-', 'LineWidth', 2, 'Color', colors{1}, ...
+     'DisplayName', 'Modeled Data (ITZ)'); % Updated DisplayName
+
+% 2) Plot Second Modeled Data (E_RCu)
+plot(xi_plot, E_plot_RCu, '--', 'LineWidth', 2, 'Color', colors{3}, ... % Use green (colors{3}) and dashed line '--'
+     'DisplayName', 'Modeled Data (RCu)'); % New DisplayName
+
+% 3) Plot & connect Experimental Data
+errorbar(exp_xi_vals, exp_E_vals, exp_std_dev, 'o', ...
+    'Color', colors{2}, 'MarkerFaceColor', colors{2}, 'MarkerSize', 6, ...
+    'CapSize', 5, 'DisplayName', 'RCA (Experimental)');
+
+%% FORMATTING
+grid on;
+box on;
+set(gca, 'FontSize', 12, 'LineWidth', 1);
+set (0, "defaultaxesfontname", "Times New Roman")
+set (0, "defaultaxesfontsize", 12)
+set (0, "defaulttextfontname", "Times New Roman")
+set (0, "defaulttextfontsize", 12)
+
+% Get the current axes
+ax = gca;
+% Enable the minor grid
+ax.XMinorGrid = 'on';
+ax.YMinorGrid = 'on';
+% Set the minor grid spacing
+ax.XMinorTick = 'on';
+ax.YMinorTick = 'on';
+% Adjust the minor tick spacing (optional, adjust as needed)
+% ax.XAxis.MinorTickValues = 0.1:0.2:0.9;
+% ax.YAxis.MinorTickValues = 5:10:45;
+
+% Change the linestyle of the major grid
+ax.GridLineStyle = ':'; % Use dotted lines ':'
+ax.MinorGridLineStyle = ':'; % Use dotted lines ':'
+% Customize the appearance (optional)
+ax.GridAlpha = 0.4; % Grid line transparency
+ax.MinorGridAlpha = 0.4;
+
+xlabel('Hydration Degree $\xi$ [-]', 'FontSize', 12, 'Interpreter', 'latex'); % Use LaTeX for greek letter
+ylabel('E-Modulus $E_{conc}$ [GPa]', ...
+       'FontSize', 12, 'Interpreter', 'latex'); % Use LaTeX for subscript
+% title('Comparison of Experimental and Modeled Concrete Elasticity', ... % Title uncommented if needed
+%       'FontSize', 14);
+yticks(0:10:50);
+xlim([0 1]);
+ylim([0 50]);
+legend('Location', 'southeast', 'FontSize', 10); % Update legend location/size if needed
+hold off; % Release the plot hold
+
+%% --- At the end of the E-Modulus Line Plot Block (handle 'f') ---
+disp('Exporting E-Modulus vs Xi plot for Word (EMF)...');
+try
+    exportgraphics(f, 'E_modulus_vs_xi.emf', 'ContentType', 'vector'); % Use .emf extension
+    disp(' -> E_modulus_vs_xi.emf');
+catch ME_export
+    warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+end
+%% --- PREVIOUS CODE should be run first to have these variables ---
+% Requires:
+%   xi_values                  (Vector of simulated hydration degrees)
+%   elastic_modulus_ITZ_values (Vector of E values for ITZ model)
+%   elastic_modulus_RCu_values (Vector of E values for RCu model)
+%   exp_xi_vals                (Vector of experimental hydration degrees)
+%   exp_E_vals                 (Vector of experimental E values)
+% --- Assumes the above variables exist in the workspace ---
+
+%% --- Bar Chart Generation at xi = 0.92 ---
+% Ensure figure handles are created before exporting
+f_ebar_abs = figure;  % Create handle for the E-Modulus Absolute Bar Chart
+f_ebar_diff = figure; % Create handle for the E-Modulus Percentage Difference Bar Chart
+f_sbar_abs = figure;  % Create handle for the Compressive Strength Absolute Bar Chart
+f_sbar_diff = figure; % Create handle for the Compressive Strength Percentage Difference Bar Chart
+
+% 1) Define Target Hydration Degree
+xi_target = 0.92;
+
+% 2) Prepare Data for Interpolation (Handling potential NaNs)
+
+% Modeled ITZ Data (Prepend (0,0) and remove NaNs)
+valid_idx_ITZ = ~isnan(elastic_modulus_ITZ_values);
+xi_interp_ITZ = [0, xi_values(valid_idx_ITZ)]; % Add origin xi
+E_interp_ITZ  = [0, elastic_modulus_ITZ_values(valid_idx_ITZ)]; % Add origin E
+% Ensure xi values are unique for interpolation
+[xi_interp_ITZ_unique, unique_idx_ITZ] = unique(xi_interp_ITZ);
+E_interp_ITZ_unique = E_interp_ITZ(unique_idx_ITZ);
+
+
+% Modeled RCu Data (Prepend (0,0) and remove NaNs)
+valid_idx_RCu = ~isnan(elastic_modulus_RCu_values);
+xi_interp_RCu = [0, xi_values(valid_idx_RCu)]; % Add origin xi
+E_interp_RCu  = [0, elastic_modulus_RCu_values(valid_idx_RCu)]; % Add origin E
+% Ensure xi values are unique for interpolation
+[xi_interp_RCu_unique, unique_idx_RCu] = unique(xi_interp_RCu);
+E_interp_RCu_unique = E_interp_RCu(unique_idx_RCu);
+
+% Experimental Data (Remove NaNs - origin (0,0) is typically not added here unless measured)
+valid_idx_exp = ~isnan(exp_E_vals) & ~isnan(exp_xi_vals);
+xi_interp_exp = exp_xi_vals(valid_idx_exp);
+E_interp_exp = exp_E_vals(valid_idx_exp);
+% Ensure xi values are unique for interpolation
+[xi_interp_exp_unique, unique_idx_exp] = unique(xi_interp_exp);
+E_interp_exp_unique = E_interp_exp(unique_idx_exp);
+
+% 3) Interpolate E-Modulus Values at xi_target
+% Use 'linear' interpolation. 'extrap' allows estimation if xi_target is slightly outside the range.
+E_ITZ_at_target = interp1(xi_interp_ITZ_unique, E_interp_ITZ_unique, xi_target, 'linear', 'extrap');
+E_RCu_at_target = interp1(xi_interp_RCu_unique, E_interp_RCu_unique, xi_target, 'linear', 'extrap');
+E_exp_at_target = interp1(xi_interp_exp_unique, E_interp_exp_unique, xi_target, 'linear', 'extrap');
+
+fprintf('Interpolated E-Modulus at xi = %.2f:\n', xi_target);
+fprintf('  Experimental: %.2f GPa\n', E_exp_at_target);
+fprintf('  Modeled (ITZ): %.2f GPa\n', E_ITZ_at_target);
+fprintf('  Modeled (RCu): %.2f GPa\n', E_RCu_at_target);
+
+%% 4) Bar Chart: Absolute Values Comparison
+
+% Prepare data and labels
+bar_data_abs   = [E_exp_at_target, E_ITZ_at_target, E_RCu_at_target];
+bar_labels_abs = {'Experimental', 'Modeled (ITZ)', 'Modeled (no ITZ)'};
+
+% Plot the bar chart
+figure; % Create a new figure
+hb_abs = bar(bar_data_abs, 0.6); % Adjust bar width if needed (e.g., 0.6)
+
+% Formatting
+grid on;
+box on;
+ylim_max = max(bar_data_abs) * 1.2; % Set y-limit slightly above the max bar
+ylim([0, ceil(ylim_max/5)*5]); % Round max y-limit up to nearest 5 or adjust as needed
+set(gca, 'FontSize', 11, 'LineWidth', 1);
+set(gca, 'XTickLabel', bar_labels_abs);
+ylabel('E-Modulus [GPa]', 'FontSize', 12);
+title(sprintf('E-Modulus Comparison at $\\xi = %.2f$', xi_target), 'FontSize', 13, 'Interpreter', 'latex');
+set (0, "defaultaxesfontname", "Times New Roman")
+set (0, "defaultaxesfontsize", 12)
+set (0, "defaulttextfontname", "Times New Roman")
+set (0, "defaulttextfontsize", 12)
+
+% Add numerical values above bars
+xtips_abs = hb_abs.XData;
+ytips_abs = hb_abs.YData;
+labels_abs = string(round(ytips_abs, 2)); % Round to 2 decimal places
+text(xtips_abs, ytips_abs, labels_abs, 'HorizontalAlignment','center',...
+    'VerticalAlignment','bottom', 'FontSize',10, 'FontWeight','bold', 'Color','k', 'Margin', 6); % Added margin
+
+% --- At the end of the E-Modulus Absolute Bar Chart Block (handle 'f_ebar_abs') ---
+disp('Exporting E-Modulus Absolute Bar Chart for Word (EMF)...');
+try
+    % Ensure f_ebar_abs is assigned via f_ebar_abs = figure; earlier
+    exportgraphics(f_ebar_abs, 'E_modulus_barchart_absolute_xi092.emf', 'ContentType', 'vector'); % Use .emf extension
+    disp(' -> E_modulus_barchart_absolute_xi092.emf');
+catch ME_export
+    warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+end
+%% 5) Bar Chart: Percentage Difference Comparison
+
+% Calculate percentage differences relative to experimental
+perc_diff_ITZ = ((E_ITZ_at_target - E_exp_at_target) / E_exp_at_target) * 100;
+perc_diff_RCu = ((E_RCu_at_target - E_exp_at_target) / E_exp_at_target) * 100;
+
+fprintf('Percentage Difference from Experimental at xi = %.2f:\n', xi_target);
+fprintf('  Modeled (ITZ): %.2f %%\n', perc_diff_ITZ);
+fprintf('  Modeled (RCu): %.2f %%\n', perc_diff_RCu);
+
+% Prepare data and labels (Experimental difference is 0 by definition)
+bar_data_diff   = [0, perc_diff_ITZ, perc_diff_RCu];
+% Use the same labels as before
+bar_labels_diff = bar_labels_abs;
+
+% Plot the bar chart
+figure; % Create a new figure
+hb_diff = bar(bar_data_diff, 0.6);
+
+% Formatting
+grid on;
+box on;
+% Determine appropriate y-limits based on data range
+max_diff = max(abs(bar_data_diff));
+ylim_diff = ceil(max_diff / 10) * 10 + 5; % Add some padding
+ylim([-ylim_diff, ylim_diff]); % Symmetrical limits around 0
+set(gca, 'FontSize', 11, 'LineWidth', 1);
+set(gca, 'XTickLabel', bar_labels_diff);
+ylabel('$(E_{model} - E_{exp}) / E_{exp}$ [$\%$]', 'FontSize', 12, 'Interpreter', 'latex');
+title(sprintf('Percentage Difference from Experimental at $\\xi = %.2f$', xi_target), 'FontSize', 13, 'Interpreter', 'latex');
+set (0, "defaultaxesfontname", "Times New Roman")
+set (0, "defaultaxesfontsize", 12)
+set (0, "defaulttextfontname", "Times New Roman")
+set (0, "defaulttextfontsize", 12)
+
+% Add numerical values near bars (adjust vertical position based on sign)
+xtips_diff = hb_diff.XData;
+ytips_diff = hb_diff.YData;
+labels_diff = string(round(ytips_diff, 1)) + "%"; % Add % sign
+
+for i = 1:length(xtips_diff)
+    v_align = 'bottom'; % Default for positive values
+    margin = 0.02 * ylim_diff; % Small margin
+    if ytips_diff(i) < 0
+        v_align = 'top'; % Place label below bar for negative values
+        margin = -margin;
+    end
+    % Don't add label for the 0% bar (experimental)
+    if i > 1
+         text(xtips_diff(i), ytips_diff(i) + margin, labels_diff(i), ...
+             'HorizontalAlignment','center', 'VerticalAlignment', v_align, ...
+             'FontSize',10, 'FontWeight','bold', 'Color','k');
+    end
+end
+
+% Add text annotation for the reference Experimental value
+text(xtips_diff(1), 0 - 0.05 * ylim_diff, ... % Position below the zero line
+     sprintf('$E_{exp} = %.2f$ GPa', E_exp_at_target), ...
+     'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', ...
+     'FontSize', 10, 'FontWeight', 'bold', 'Color', 'black', 'Interpreter', 'latex');
+
+% --- At the end of the E-Modulus Percentage Diff Bar Chart Block (handle 'f_ebar_diff') ---
+disp('Exporting E-Modulus Percentage Difference Bar Chart for Word (EMF)...');
+try
+    % Ensure f_ebar_diff is assigned via f_ebar_diff = figure; earlier
+    exportgraphics(f_ebar_diff, 'E_modulus_barchart_percent_diff_xi092.emf', 'ContentType', 'vector'); % Use .emf extension
+     disp(' -> E_modulus_barchart_percent_diff_xi092.emf');
+catch ME_export
+    warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+end
+
+%% --- Prerequisite ---
+% Assume 'req_xi' (vector of hydration degrees) exists in the workspace.
+% Assume 'create_experimental_data.m' script exists and can be run to load 'experimental_data'.
+
+%% --- Load Modeled Compressive Strength Data ---
+try
+    strength_data_ITZ = load('RC_final_strengthRCu_ssd141414_sensFpor.mat', 'strength_values');
+    strength_values_ITZ = strength_data_ITZ.strength_values;
+    disp('Loaded strength data (ITZ model).');
+catch ME
+    warning('Could not load ITZ strength data (RC_final_strengthRCu_ssd141414_sensFpor.mat). Error: %s', ME.message);
+    strength_values_ITZ = []; % Ensure variable exists but is empty
+end
+
+try
+    strength_data_RCu = load('RC_final_strengthRCu_ssd101010_sensFpor.mat', 'strength_values');
+    strength_values_RCu = strength_data_RCu.strength_values; % Use a different name
+    disp('Loaded strength data (RCu/No ITZ model).');
+catch ME
+    warning('Could not load RCu/No ITZ strength data (RC_final_strengthRCu_ssd101010_sensFpor.mat). Error: %s', ME.message);
+    strength_values_RCu = []; % Ensure variable exists but is empty
+end
+
+% Ensure strength vectors match the length of req_xi if loaded correctly
+if ~isempty(strength_values_ITZ) && length(strength_values_ITZ) ~= length(req_xi)
+     warning('Length of ITZ strength data does not match req_xi. Check data files.');
+     strength_values_ITZ = []; % Invalidate data
+end
+if ~isempty(strength_values_RCu) && length(strength_values_RCu) ~= length(req_xi)
+     warning('Length of RCu strength data does not match req_xi. Check data files.');
+     strength_values_RCu = []; % Invalidate data
+end
+
+
+%% 9) PLOT SIMULATION VS EXPERIMENTAL DATA (Compressive Strength)
+
+disp('Processing Compressive Strength vs. Hydration Degree...');
+xi_values = req_xi; % Use the hydration degrees from simulation setup
+
+% --- Prepare Modeled Data (ITZ) ---
+xi_plot_cs_ITZ = []; % Initialize as empty
+strength_plot_ITZ = [];
+can_plot_ITZ_data = false;
+if ~isempty(strength_values_ITZ)
+    xi_temp_ITZ = [0, xi_values];
+    strength_temp_ITZ = [0, strength_values_ITZ]; % Add origin (0,0)
+    valid_indices_ITZ = ~isnan(strength_temp_ITZ);
+    if any(valid_indices_ITZ)
+        xi_plot_cs_ITZ    = xi_temp_ITZ(valid_indices_ITZ);
+        strength_plot_ITZ = strength_temp_ITZ(valid_indices_ITZ);
+        can_plot_ITZ_data = true;
+        % Ensure unique xi values for later interpolation
+        [xi_plot_cs_ITZ, unique_idx] = unique(xi_plot_cs_ITZ);
+        strength_plot_ITZ = strength_plot_ITZ(unique_idx);
+    end
+end
+if ~can_plot_ITZ_data
+    disp('No valid modeled strength data (ITZ) to plot.');
+end
+
+
+% --- Prepare Modeled Data (RCu / No ITZ) ---
+xi_plot_cs_RCu = []; % Initialize as empty
+strength_plot_RCu = [];
+can_plot_RCu_data = false;
+if ~isempty(strength_values_RCu)
+    xi_temp_RCu = [0, xi_values];
+    strength_temp_RCu = [0, strength_values_RCu]; % Add origin (0,0)
+    valid_indices_RCu = ~isnan(strength_temp_RCu);
+    if any(valid_indices_RCu)
+        xi_plot_cs_RCu    = xi_temp_RCu(valid_indices_RCu);
+        strength_plot_RCu = strength_temp_RCu(valid_indices_RCu);
+        can_plot_RCu_data = true;
+         % Ensure unique xi values for later interpolation
+        [xi_plot_cs_RCu, unique_idx] = unique(xi_plot_cs_RCu);
+        strength_plot_RCu = strength_plot_RCu(unique_idx);
+    end
+end
+if ~can_plot_RCu_data
+    disp('No valid modeled strength data (RCu / No ITZ) to plot.');
+end
+
+
+% --- Load and Prepare Experimental Compressive Strength Data ---
+% (Using logic similar to the user's provided snippet)
+exp_xi_vals_cs = [];
+exp_cs_vals = [];
+exp_cs_std_dev = [];
+exp_strength_available = false; % Flag
+try
+    % Ensure experimental data structure exists
+    if ~exist('experimental_data', 'var')
+        run('create_experimental_data.m'); % Attempt to load it
+    end
+
+    if exist('experimental_data', 'var') && isfield(experimental_data, 'SSD') && isfield(experimental_data.SSD, 'strength_MPa') % Check for SSD CS structure
+        sample_row_index = 4; % Example: Use 4th row (RC - Recycled Concrete Aggregate) - ADJUST AS NEEDED
+        if sample_row_index <= size(experimental_data.SSD.strength_MPa, 1) && sample_row_index <= length(experimental_data.sample_descriptions)
+           temp_exp_xi_vals_cs = experimental_data.xi_marker_vals;
+           temp_exp_cs_vals = experimental_data.SSD.strength_MPa(sample_row_index, :);
+           temp_exp_cs_std_dev = experimental_data.SSD.strength_MPa_stddev(sample_row_index, :);
+
+           % Filter out NaNs from experimental data
+           valid_exp_idx = ~isnan(temp_exp_cs_vals) & ~isnan(temp_exp_cs_std_dev) & ~isnan(temp_exp_xi_vals_cs);
+           exp_xi_vals_cs = temp_exp_xi_vals_cs(valid_exp_idx);
+           exp_cs_vals = temp_exp_cs_vals(valid_exp_idx);
+           exp_cs_std_dev = temp_exp_cs_std_dev(valid_exp_idx);
+
+           if ~isempty(exp_cs_vals)
+               exp_strength_available = true;
+               disp(['Experimental SSD compressive strength data found and processed for sample: ', experimental_data.sample_descriptions{sample_row_index}]);
+               % Ensure unique xi values for later interpolation
+               [exp_xi_vals_cs, unique_idx] = unique(exp_xi_vals_cs);
+               exp_cs_vals = exp_cs_vals(unique_idx);
+               exp_cs_std_dev = exp_cs_std_dev(unique_idx); % Keep std dev consistent with filtered xi/strength
+           else
+                disp(['No valid (non-NaN) experimental SSD strength data found for sample row: ', num2str(sample_row_index)]);
+           end
+        else
+            disp(['Error: sample_row_index (', num2str(sample_row_index), ') is out of bounds for strength data or sample descriptions.']);
+        end
+    else
+         disp('Experimental SSD compressive strength data structure not found or not loaded.');
+    end
+catch ME_exp
+    warning('Error loading or processing experimental strength data: %s', ME_exp.message);
+end
+
+
+% --- Create Figure and Plot ---
+if can_plot_ITZ_data || can_plot_RCu_data || exp_strength_available
+    f_strength = figure; % Create a new figure handle
+    hold on;
+    colors = {'b', 'r', 'g', 'm', 'c'}; % Blue=ITZ, Red=Exp, Green=RCu
+
+    % 1) Plot Modeled Data (ITZ)
+    if can_plot_ITZ_data
+        plot(xi_plot_cs_ITZ, strength_plot_ITZ, '-', 'LineWidth', 2, 'Color', colors{1}, ...
+             'DisplayName', 'Modeled Strength (ITZ)');
+    end
+
+    % 2) Plot Modeled Data (RCu / No ITZ)
+    if can_plot_RCu_data
+        plot(xi_plot_cs_RCu, strength_plot_RCu, '--', 'LineWidth', 2, 'Color', colors{3}, ... % Green dashed
+             'DisplayName', 'Modeled Strength (RCu)');
+    end
+
+    % 3) Plot Experimental Data
+    if exp_strength_available
+        errorbar(exp_xi_vals_cs, exp_cs_vals, exp_cs_std_dev, 's', ... % Square markers 's'
+                 'Color', colors{2}, 'MarkerFaceColor', colors{2}, 'MarkerSize', 6, ...
+                 'CapSize', 5, 'DisplayName', ['Experimental Strength (RCA)']); % Adjust name if needed
+    end
+
+    % Formatting
+    grid on;
+    box on;
+    set(gca, 'FontSize', 12, 'LineWidth', 1);
+    set (0, "defaultaxesfontname", "Times New Roman")
+    set (0, "defaultaxesfontsize", 12)
+    set (0, "defaulttextfontname", "Times New Roman")
+    set (0, "defaulttextfontsize", 12)
+    ax_cs = gca;
+    ax_cs.XMinorGrid = 'on';
+    ax_cs.YMinorGrid = 'on';
+    ax_cs.XMinorTick = 'on';
+    ax_cs.YMinorTick = 'on';
+    ax_cs.GridLineStyle = ':';
+    ax_cs.MinorGridLineStyle = ':';
+    ax_cs.GridAlpha = 0.4;
+    ax_cs.MinorGridAlpha = 0.4;
+    xlabel('Hydration Degree $\xi$ [-]', 'FontSize', 12, 'Interpreter', 'latex');
+    ylabel('Compressive Strength $f_c$ [MPa]', 'FontSize', 12, 'Interpreter', 'latex'); % Use fc for strength
+    title('Compressive Strength vs. Hydration Degree', 'FontSize', 14);
+    xlim([0 1]);
+    % Adjust Y Lim based on max strength found
+    all_max_strength = [];
+    if can_plot_ITZ_data, all_max_strength = [all_max_strength, max(strength_plot_ITZ)]; end
+    if can_plot_RCu_data, all_max_strength = [all_max_strength, max(strength_plot_RCu)]; end
+    if exp_strength_available, all_max_strength = [all_max_strength, max(exp_cs_vals + exp_cs_std_dev)]; end % Consider error bar top
+    if ~isempty(all_max_strength)
+        ylim_top = ceil(max(all_max_strength) / 10) * 10; % Round up to nearest 10
+        ylim([0, max(ylim_top, 10)]); % Ensure ylim is at least 10
+    else
+        ylim([0 50]); % Default if no data
+    end
+
+    legend('Location', 'southeast', 'FontSize', 10);
+    hold off;
+
+else
+    disp('No data available to plot for compressive strength.');
+end
+
+% --- At the end of the Compressive Strength Line Plot Block (handle 'f_strength') ---
+if exist('f_strength', 'var') && isgraphics(f_strength) % Check if figure handle exists and is valid
+    disp('Exporting Compressive Strength vs Xi plot for Word (EMF)...');
+    try
+        exportgraphics(f_strength, 'CompStrength_vs_xi.emf', 'ContentType', 'vector'); % Use .emf extension
+         disp(' -> CompStrength_vs_xi.emf');
+    catch ME_export
+        warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+    end
+else
+    if ~(can_plot_ITZ_data || can_plot_RCu_data || exp_strength_available)
+         % This is expected if no strength data was plotted
+         disp('Skipping strength line plot export as no data was plotted.');
+    else
+         % This might indicate an issue if data WAS plotted but handle is wrong
+         warning('Strength line plot handle ''f_strength'' not found or invalid for export.');
+    end
+end
+
+%% --- Bar Charts for Compressive Strength at xi = 0.92 ---
+
+xi_target_cs = 0.92;
+can_create_bar_charts = false; % Flag
+
+% Check if we have data for interpolation for all three types
+if can_plot_ITZ_data && can_plot_RCu_data && exp_strength_available
+    % Interpolate Strength Values at xi_target_cs
+    try
+        strength_ITZ_at_target = interp1(xi_plot_cs_ITZ, strength_plot_ITZ, xi_target_cs, 'linear', 'extrap');
+        strength_RCu_at_target = interp1(xi_plot_cs_RCu, strength_plot_RCu, xi_target_cs, 'linear', 'extrap');
+        strength_exp_at_target = interp1(exp_xi_vals_cs, exp_cs_vals, xi_target_cs, 'linear', 'extrap');
+
+        fprintf('\nInterpolated Compressive Strength at xi = %.2f:\n', xi_target_cs);
+        fprintf('  Experimental: %.2f MPa\n', strength_exp_at_target);
+        fprintf('  Modeled (ITZ): %.2f MPa\n', strength_ITZ_at_target);
+        fprintf('  Modeled (RCu): %.2f MPa\n', strength_RCu_at_target);
+        can_create_bar_charts = true; % Ready for bar charts
+
+    catch ME_interp
+        warning('Could not interpolate strength values at xi = %.2f. Error: %s', xi_target_cs, ME_interp.message);
+        can_create_bar_charts = false;
+    end
+else
+    disp('Insufficient data available for interpolation to create strength bar charts at xi = 0.92.');
+end
+
+
+if can_create_bar_charts
+    %% Bar Chart 1: Absolute Strength Values Comparison
+    bar_data_cs_abs   = [strength_exp_at_target, strength_ITZ_at_target, strength_RCu_at_target];
+    bar_labels_cs_abs = {'Experimental', 'Modeled (ITZ)', 'Modeled (RCu)'};
+
+    figure; % New figure
+    hb_cs_abs = bar(bar_data_cs_abs, 0.6);
+
+    % Formatting
+    grid on; box on;
+    ylim_max_cs = max(bar_data_cs_abs) * 1.2;
+    ylim([0, ceil(ylim_max_cs/10)*10]); % Adjust ylim based on data, round up to nearest 10
+    set(gca, 'FontSize', 11, 'LineWidth', 1);
+    set(gca, 'XTickLabel', bar_labels_cs_abs);
+    ylabel('Compressive Strength $f_c$ [MPa]', 'FontSize', 12, 'Interpreter', 'latex');
+    title(sprintf('Strength Comparison at $\\xi = %.2f$', xi_target_cs), 'FontSize', 13, 'Interpreter', 'latex');
+    set (0, "defaultaxesfontname", "Times New Roman")
+    set (0, "defaultaxesfontsize", 12)
+    set (0, "defaulttextfontname", "Times New Roman")
+    set (0, "defaulttextfontsize", 12)
+
+    % Add numerical values above bars
+    xtips_cs_abs = hb_cs_abs.XData;
+    ytips_cs_abs = hb_cs_abs.YData;
+    labels_cs_abs = string(round(ytips_cs_abs, 1)); % Round to 1 decimal place for MPa
+    text(xtips_cs_abs, ytips_cs_abs, labels_cs_abs, 'HorizontalAlignment','center',...
+        'VerticalAlignment','bottom', 'FontSize',10, 'FontWeight','bold', 'Color','k', 'Margin', 6);
+    %% --- At the end of the Compressive Strength Absolute Bar Chart Block (handle 'f_sbar_abs') ---
+    if exist('f_sbar_abs', 'var') && isgraphics(f_sbar_abs) % Check if figure handle exists and is valid
+        disp('Exporting Compressive Strength Absolute Bar Chart for Word (EMF)...');
+        try
+            % Ensure f_sbar_abs is assigned via f_sbar_abs = figure; earlier
+            exportgraphics(f_sbar_abs, 'CompStrength_barchart_absolute_xi092.emf', 'ContentType', 'vector'); % Use .emf extension
+            disp(' -> CompStrength_barchart_absolute_xi092.emf');
+        catch ME_export
+            warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+        end
+    else
+         if ~can_create_bar_charts
+             disp('Skipping strength absolute bar chart export as prerequisites were not met.');
+         else
+             warning('Strength absolute bar chart handle ''f_sbar_abs'' not found or invalid for export.');
+         end
+    end
+    %% Bar Chart 2: Percentage Difference Comparison
+    perc_diff_cs_ITZ = ((strength_ITZ_at_target - strength_exp_at_target) / strength_exp_at_target) * 100;
+    perc_diff_cs_RCu = ((strength_RCu_at_target - strength_exp_at_target) / strength_exp_at_target) * 100;
+
+    fprintf('Percentage Difference from Experimental Strength at xi = %.2f:\n', xi_target_cs);
+    fprintf('  Modeled (ITZ): %.2f %%\n', perc_diff_cs_ITZ);
+    fprintf('  Modeled (RCu): %.2f %%\n', perc_diff_cs_RCu);
+
+    bar_data_cs_diff   = [0, perc_diff_cs_ITZ, perc_diff_cs_RCu];
+    bar_labels_cs_diff = bar_labels_cs_abs; % Use same labels
+
+    figure; % New figure
+    hb_cs_diff = bar(bar_data_cs_diff, 0.6);
+
+    % Formatting
+    grid on; box on;
+    max_diff_cs = max(abs(bar_data_cs_diff));
+    ylim_diff_cs = ceil(max_diff_cs / 10) * 10 + 5; % Add padding
+    ylim([-ylim_diff_cs, ylim_diff_cs]); % Symmetrical limits
+    set(gca, 'FontSize', 11, 'LineWidth', 1);
+    set(gca, 'XTickLabel', bar_labels_cs_diff);
+    ylabel('$(f_{c,model} - f_{c,exp}) / f_{c,exp}$ [$\%$]', 'FontSize', 12, 'Interpreter', 'latex');
+    title(sprintf('Strength Percentage Difference at $\\xi = %.2f$', xi_target_cs), 'FontSize', 13, 'Interpreter', 'latex');
+    set (0, "defaultaxesfontname", "Times New Roman")
+    set (0, "defaultaxesfontsize", 12)
+    set (0, "defaulttextfontname", "Times New Roman")
+    set (0, "defaulttextfontsize", 12)
+
+    % Add numerical values near bars
+    xtips_cs_diff = hb_cs_diff.XData;
+    ytips_cs_diff = hb_cs_diff.YData;
+    labels_cs_diff = string(round(ytips_cs_diff, 1)) + "%";
+
+    for i = 1:length(xtips_cs_diff)
+        v_align = 'bottom'; margin = 0.02 * ylim_diff_cs;
+        if ytips_cs_diff(i) < 0, v_align = 'top'; margin = -margin; end
+        if i > 1 % Don't label the 0% bar
+             text(xtips_cs_diff(i), ytips_cs_diff(i) + margin, labels_cs_diff(i), ...
+                 'HorizontalAlignment','center', 'VerticalAlignment', v_align, ...
+                 'FontSize',10, 'FontWeight','bold', 'Color','k');
+        end
+    end
+
+    % Add text annotation for the reference Experimental value
+    text(xtips_cs_diff(1), 0 - 0.05 * ylim_diff_cs, ...
+         sprintf('$f_{c,exp} = %.1f$ MPa', strength_exp_at_target), ... % 1 decimal place for MPa
+         'HorizontalAlignment', 'center', 'VerticalAlignment', 'top', ...
+         'FontSize', 10, 'FontWeight', 'bold', 'Color', 'black', 'Interpreter', 'latex');
+    %% --- At the end of the Compressive Strength Percentage Diff Bar Chart Block (handle 'f_sbar_diff') ---
+    if exist('f_sbar_diff', 'var') && isgraphics(f_sbar_diff) % Check if figure handle exists and is valid
+        disp('Exporting Compressive Strength Percentage Difference Bar Chart for Word (EMF)...');
+        try
+            % Ensure f_sbar_diff is assigned via f_sbar_diff = figure; earlier
+            exportgraphics(f_sbar_diff, 'CompStrength_barchart_percent_diff_xi092.emf', 'ContentType', 'vector'); % Use .emf extension
+            disp(' -> CompStrength_barchart_percent_diff_xi092.emf');
+        catch ME_export
+            warning('Could not export figure using exportgraphics. Error: %s', ME_export.message);
+        end
+    else
+        if ~can_create_bar_charts
+             disp('Skipping strength percent diff bar chart export as prerequisites were not met.');
+         else
+             warning('Strength percent diff bar chart handle ''f_sbar_diff'' not found or invalid for export.');
+         end
+    end
+end % End of check for bar chart creation
+
+
+
+
